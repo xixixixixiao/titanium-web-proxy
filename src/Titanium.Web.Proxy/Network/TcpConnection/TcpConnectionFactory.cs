@@ -343,7 +343,7 @@ namespace Titanium.Web.Proxy.Network.Tcp
 retry:
             try
             {
-                bool socks = externalProxy != null && externalProxy.ProxyType != ExternalProxyType.Http;
+                bool socks = externalProxy != null && (externalProxy.ProxyType == ExternalProxyType.Socks4 || externalProxy.ProxyType == ExternalProxyType.Socks5);
                 string hostname = remoteHostName;
                 int port = remotePort;
 
@@ -395,6 +395,16 @@ retry:
 
                             tcpServerSocket = proxySocket;
                         }
+                        else if (externalProxy is {ProxyType: ExternalProxyType.HttpTunnel})
+                        {
+                            var proxySocket = new ProxySocket.ProxySocket(addressFamily, SocketType.Stream, ProtocolType.Tcp);
+
+                            proxySocket.ProxyEndPoint = new IPEndPoint(ipAddress, port);
+                            proxySocket.ProxyType     = ProxyTypes.HttpTunnel;
+                            proxySocket.ProxyToken    = externalProxy.Token ?? string.Empty;
+
+                            tcpServerSocket = proxySocket;
+                        }
                         else
                         {
                             tcpServerSocket = new Socket(addressFamily, SocketType.Stream, ProtocolType.Tcp);
@@ -435,6 +445,10 @@ retry:
                                 // todo: use the 2nd, 3rd... remote addresses when first fails
                                 connectTask = ProxySocketConnectionTaskFactory.CreateTask((ProxySocket.ProxySocket)tcpServerSocket, remoteIpAddresses[0], remotePort);
                             }
+                        }
+                        else if (externalProxy is { ProxyType: ExternalProxyType.HttpTunnel })
+                        {
+                            connectTask = SocketConnectionTaskFactory.CreateTask(tcpServerSocket, ipAddress, port);
                         }
                         else
                         {
@@ -544,6 +558,41 @@ retry:
 
                     var httpStatus = await stream.ReadResponseStatus(cancellationToken);
                     var headers = new HeaderCollection();
+                    await HeaderParser.ReadHeaders(stream, headers, cancellationToken);
+
+                    if (httpStatus.StatusCode != 200 && !httpStatus.Description.EqualsIgnoreCase("OK")
+                                                     && !httpStatus.Description.EqualsIgnoreCase("Connection Established"))
+                    {
+                        throw new Exception("Upstream proxy failed to create a secure tunnel");
+                    }
+                }
+
+                if (externalProxy is { ProxyType: ExternalProxyType.HttpTunnel })
+                {
+                    var authority      = $"{remoteHostName}:{remotePort}";
+                    var authorityBytes = authority.GetByteString();
+                    var connectRequest = new ConnectRequest(authorityBytes)
+                    {
+                        IsHttps           = isHttps,
+                        RequestUriString8 = authorityBytes,
+                        HttpVersion       = httpVersion
+                    };
+
+                    connectRequest.Headers.AddHeader(KnownHeaders.Connection, KnownHeaders.ConnectionKeepAlive);
+                    connectRequest.Headers.AddHeader(KnownHeaders.Host, authority);
+
+                    if (!string.IsNullOrEmpty(externalProxy.Token))
+                    {
+                        connectRequest.Headers.AddHeader("Proxy-Connection", KnownHeaders.ConnectionKeepAlive);
+                        connectRequest.Headers.AddHeader("Authentication", $"XAuth {externalProxy.Token}");
+                    }
+
+                    await proxyServer.onBeforeUpStreamConnectRequest(connectRequest);
+
+                    await stream.WriteRequestAsync(connectRequest, cancellationToken);
+
+                    var httpStatus = await stream.ReadResponseStatus(cancellationToken);
+                    var headers    = new HeaderCollection();
                     await HeaderParser.ReadHeaders(stream, headers, cancellationToken);
 
                     if (httpStatus.StatusCode != 200 && !httpStatus.Description.EqualsIgnoreCase("OK")

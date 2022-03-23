@@ -27,6 +27,11 @@
         string? Password { get; set; }
 
         /// <summary>
+        ///     Token.
+        /// </summary>
+        string? Token { get; set; }
+
+        /// <summary>
         ///     Host name.
         /// </summary>
         string HostName { get; set; }

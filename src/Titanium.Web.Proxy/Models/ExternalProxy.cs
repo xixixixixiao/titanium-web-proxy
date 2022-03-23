@@ -15,6 +15,8 @@ namespace Titanium.Web.Proxy.Models
 
         private string? userName;
 
+        private string? token;
+
         /// <summary>
         ///     Use default windows credentials?
         /// </summary>
@@ -60,6 +62,19 @@ namespace Titanium.Web.Proxy.Models
                 {
                     UseDefaultCredentials = false;
                 }
+            }
+        }
+
+        /// <summary>
+        ///     Token.
+        /// </summary>
+        public string? Token
+        {
+            get => token;
+            set
+            {
+                token = value;
+                UseDefaultCredentials = false;
             }
         }
 
@@ -125,6 +140,9 @@ namespace Titanium.Web.Proxy.Models
         Socks4,
 
         /// <summary>A SOCKS5 proxy server.</summary>
-        Socks5
+        Socks5,
+
+        /// <summary>A HTTP Tunnel server.</summary>
+        HttpTunnel,
     }
 }

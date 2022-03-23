@@ -50,7 +50,10 @@ namespace Titanium.Web.Proxy.ProxySocket
         Socks4,
 
         /// <summary>A SOCKS5 proxy server.</summary>
-        Socks5
+        Socks5,
+
+        /// <summary>A HTTP Tunnel server.</summary>
+        HttpTunnel,
     }
 
     /// <summary>
@@ -236,6 +239,14 @@ namespace Titanium.Web.Proxy.ProxySocket
                 return AsyncResult;
             }
 
+            if (ProxyType == ProxyTypes.HttpTunnel)
+            {
+                AsyncResult = new HttpTunnelHandler(this, ProxyToken).BeginNegotiate
+                (
+                    (IPEndPoint)remoteEP, OnHandShakeComplete, ProxyEndPoint, state
+                );
+            }
+
             return null;
         }
 
@@ -284,6 +295,14 @@ namespace Titanium.Web.Proxy.ProxySocket
                 AsyncResult = (new Socks5Handler(this, ProxyUser, ProxyPass)).BeginNegotiate(host, port,
                     this.OnHandShakeComplete, ProxyEndPoint, state);
                 return AsyncResult;
+            }
+
+            if (ProxyType == ProxyTypes.HttpTunnel)
+            {
+                AsyncResult = new HttpTunnelHandler(this, ProxyToken).BeginNegotiate
+                (
+                    host, port, OnHandShakeComplete, ProxyEndPoint, state
+                );
             }
 
             return null;
@@ -428,6 +447,17 @@ namespace Titanium.Web.Proxy.ProxySocket
         }
 
         /// <summary>
+        /// Gets or sets the token to use when authenticating with the proxy.
+        /// </summary>
+        /// <value>A string that holds the token that's used when authenticating with the proxy.</value>
+        /// <exception cref="ArgumentNullException">The specified value is null.</exception>
+        public string ProxyToken
+        {
+            get => _proxyToken;
+            set => _proxyToken = value ?? throw new ArgumentNullException();
+        }
+
+        /// <summary>
         /// Gets or sets the asynchronous result object.
         /// </summary>
         /// <value>An instance of the IAsyncProxyResult class.</value>
@@ -452,6 +482,9 @@ namespace Titanium.Web.Proxy.ProxySocket
 
         /// <summary>Holds the value of the ProxyPass property.</summary>
         private string _proxyPass = string.Empty;
+
+        /// <summary>Holds the value of the ProxyToken property.</summary>
+        private string _proxyToken = string.Empty;
 
         /// <summary>Holds a pointer to the method that should be called when the Socket is connected to the remote device.</summary>
         private AsyncCallback CallBack;
